@@ -29,7 +29,7 @@ func resourceBigipLtmMonitor() *schema.Resource {
 				Required:     true,
 				ValidateFunc: validateParent,
 				ForceNew:     true,
-				Description:  "Existing monitor to inherit from. Must be one of http, https, icmp or gateway-icmp.",
+				Description:  "Existing monitor to inherit from. Must be one of http, https, tcp, icmp or gateway-icmp.",
 			},
 
 			"interval": &schema.Schema{
@@ -208,7 +208,7 @@ func resourceBigipLtmMonitorDelete(d *schema.ResourceData, meta interface{}) err
 func validateParent(v interface{}, k string) ([]string, []error) {
 	p := v.(string)
 
-	if p == "http" || p == "https" || p == "icmp" || p == "gateway-icmp" {
+	if p == "http" || p == "https" || p == "tcp" || p == "icmp" || p == "gateway-icmp" {
 		return nil, nil
 	}
 
