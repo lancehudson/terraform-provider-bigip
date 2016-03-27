@@ -120,6 +120,7 @@ func resourceBigipLtmMonitorCreate(d *schema.ResourceData, meta interface{}) err
 		d.Get("timeout").(int),
 		d.Get("send").(string),
 		d.Get("receive").(string),
+		d.Get("partition").(string),
 	)
 
 	d.SetId(name)
@@ -180,6 +181,7 @@ func resourceBigipLtmMonitorUpdate(d *schema.ResourceData, meta interface{}) err
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 
 	m := &bigip.Monitor{
 		Interval:       d.Get("interval").(int),
@@ -194,15 +196,16 @@ func resourceBigipLtmMonitorUpdate(d *schema.ResourceData, meta interface{}) err
 		ManualResume:   d.Get("manual_resume").(bool),
 	}
 
-	return client.ModifyMonitor(name, d.Get("parent").(string), m)
+	return client.ModifyMonitor(name, partition, d.Get("parent").(string), m)
 }
 
 func resourceBigipLtmMonitorDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*bigip.BigIP)
 	name := d.Id()
+	partition := d.Get("partition").(string)
 	parent := d.Get("parent").(string)
 	log.Println("[Info] Deleting monitor " + name + "::" + parent)
-	return client.DeleteMonitor(name, parent)
+	return client.DeleteMonitor(name, partition, parent)
 }
 
 func validateParent(v interface{}, k string) ([]string, []error) {

@@ -79,9 +79,10 @@ func resourceBigipLtmPoolCreate(d *schema.ResourceData, meta interface{}) error 
 	client := meta.(*bigip.BigIP)
 
 	name := d.Get("name").(string)
+	partition := d.Get("partition").(string)
 
 	log.Println("[INFO] Creating pool " + name)
-	err := client.CreatePool(name)
+	err := client.CreatePool(name, partition)
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func resourceBigipLtmPoolCreate(d *schema.ResourceData, meta interface{}) error 
 
 	err = resourceBigipLtmPoolUpdate(d, meta)
 	if err != nil {
-		client.DeletePool(name)
+		client.DeletePool(name, partition)
 		return err
 	}
 
@@ -100,19 +101,20 @@ func resourceBigipLtmPoolRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 
 	log.Println("[INFO] Reading pool " + name)
 
-	pool, err := client.GetPool(name)
+	pool, err := client.GetPool(name, partition)
 	if err != nil {
 		return err
 	}
-	nodes, err := client.PoolMembers(name)
+	nodes, err := client.PoolMembers(name, partition)
 	if err != nil {
 		return err
 	}
 
-	partition := pool.Partition
+	partition = pool.Partition
 	if partition == "" {
 		partition = DEFAULT_PARTITION
 	}
@@ -134,9 +136,10 @@ func resourceBigipLtmPoolExists(d *schema.ResourceData, meta interface{}) (bool,
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 	log.Println("[INFO] Checking pool " + name + " exists.")
 
-	pool, err := client.GetPool(name)
+	pool, err := client.GetPool(name, partition)
 	if err != nil {
 		return false, err
 	}
@@ -152,6 +155,7 @@ func resourceBigipLtmPoolUpdate(d *schema.ResourceData, meta interface{}) error 
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 
 	//monitors
 	var monitors []string
@@ -167,16 +171,16 @@ func resourceBigipLtmPoolUpdate(d *schema.ResourceData, meta interface{}) error 
 		AllowSNAT:         d.Get("allow_snat").(bool),
 		LoadBalancingMode: d.Get("load_balancing_mode").(string),
 		Monitor:           strings.Join(monitors, " and "),
-		//Partition: d.Get("partition").(string),
+		Partition:         d.Get("partition").(string),
 	}
 
-	err := client.ModifyPool(name, pool)
+	err := client.ModifyPool(name, partition, pool)
 	if err != nil {
 		return err
 	}
 
 	//members
-	nodes, err := client.PoolMembers(name)
+	nodes, err := client.PoolMembers(name, partition)
 	if err != nil {
 		return err
 	}
@@ -186,12 +190,12 @@ func resourceBigipLtmPoolUpdate(d *schema.ResourceData, meta interface{}) error 
 	add := incoming.Difference(existing)
 	if delete.Len() > 0 {
 		for _, d := range delete.List() {
-			client.DeletePoolMember(name, d.(string))
+			client.DeletePoolMember(name, partition, d.(string))
 		}
 	}
 	if add.Len() > 0 {
 		for _, d := range add.List() {
-			client.AddPoolMember(name, d.(string))
+			client.AddPoolMember(name, partition, d.(string))
 		}
 	}
 
@@ -202,7 +206,8 @@ func resourceBigipLtmPoolDelete(d *schema.ResourceData, meta interface{}) error 
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 	log.Println("[INFO] Deleting pool " + name)
 
-	return client.DeletePool(name)
+	return client.DeletePool(name, partition)
 }

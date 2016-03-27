@@ -25,6 +25,14 @@ func resourceBigipLtmVirtualServer() *schema.Resource {
 				Description: "Name of the virtual server",
 			},
 
+			"partition": &schema.Schema{
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     DEFAULT_PARTITION,
+				Description: "LTM Partition",
+				ForceNew:    true,
+			},
+
 			"port": &schema.Schema{
 				Type:        schema.TypeInt,
 				Required:    true,
@@ -92,6 +100,7 @@ func resourceBigipLtmVirtualServerCreate(d *schema.ResourceData, meta interface{
 	client := meta.(*bigip.BigIP)
 
 	name := d.Get("name").(string)
+	partition := d.Get("partition").(string)
 	port := d.Get("port").(int)
 
 	log.Println("[INFO] Creating virtual server " + name)
@@ -101,6 +110,7 @@ func resourceBigipLtmVirtualServerCreate(d *schema.ResourceData, meta interface{
 		d.Get("mask").(string),
 		d.Get("pool").(string),
 		port,
+		d.Get("partition").(string),
 	)
 	if err != nil {
 		return err
@@ -110,7 +120,7 @@ func resourceBigipLtmVirtualServerCreate(d *schema.ResourceData, meta interface{
 
 	err = resourceBigipLtmVirtualServerUpdate(d, meta)
 	if err != nil {
-		client.DeleteVirtualServer(name)
+		client.DeleteVirtualServer(name, partition)
 		return err
 	}
 
@@ -121,12 +131,18 @@ func resourceBigipLtmVirtualServerRead(d *schema.ResourceData, meta interface{})
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 
 	log.Println("[INFO] Fetching virtual server " + name)
 
-	vs, err := client.GetVirtualServer(name)
+	vs, err := client.GetVirtualServer(name, partition)
 	if err != nil {
 		return err
+	}
+
+	partition = vs.Partition
+	if partition == "" {
+		partition = DEFAULT_PARTITION
 	}
 
 	// /Common/virtual_server_name:80
@@ -137,6 +153,7 @@ func resourceBigipLtmVirtualServerRead(d *schema.ResourceData, meta interface{})
 	}
 
 	pool := strings.Split(vs.Pool, "/")
+	d.Set("partition", partition)
 	d.Set("destination", destination[2])
 	d.Set("source", vs.Source)
 	d.Set("protocol", vs.IPProtocol)
@@ -148,7 +165,7 @@ func resourceBigipLtmVirtualServerRead(d *schema.ResourceData, meta interface{})
 	d.Set("ip_protocol", vs.IPProtocol)
 	d.Set("source_address_translation", vs.SourceAddressTranslation.Type)
 
-	profiles, err := client.VirtualServerProfiles(vs.Name)
+	profiles, err := client.VirtualServerProfiles(vs.Name, vs.Partition)
 	if err != nil {
 		return err
 	}
@@ -165,9 +182,10 @@ func resourceBigipLtmVirtualServerExists(d *schema.ResourceData, meta interface{
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 	log.Println("[INFO] Fetching virtual server " + name)
 
-	vs, err := client.GetVirtualServer(name)
+	vs, err := client.GetVirtualServer(name, partition)
 	if err != nil {
 		return false, err
 	}
@@ -209,7 +227,9 @@ func resourceBigipLtmVirtualServerUpdate(d *schema.ResourceData, meta interface{
 		}{Type: d.Get("source_address_translation").(string)},
 	}
 
-	err := client.ModifyVirtualServer(name, vs)
+	partition := d.Get("partition").(string)
+
+	err := client.ModifyVirtualServer(name, partition, vs)
 	if err != nil {
 		return err
 	}
@@ -221,7 +241,8 @@ func resourceBigipLtmVirtualServerDelete(d *schema.ResourceData, meta interface{
 	client := meta.(*bigip.BigIP)
 
 	name := d.Get("name").(string)
+	partition := d.Get("partition").(string)
 	log.Println("[INFO] Deleting virtual server " + name)
 
-	return client.DeleteVirtualServer(name)
+	return client.DeleteVirtualServer(name, partition)
 }

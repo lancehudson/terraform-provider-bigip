@@ -25,6 +25,14 @@ func resourceBigipLtmNode() *schema.Resource {
 				ForceNew:    true,
 			},
 
+			"partition": &schema.Schema{
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     DEFAULT_PARTITION,
+				Description: "LTM Partition",
+				ForceNew:    true,
+			},
+
 			"address": &schema.Schema{
 				Type:        schema.TypeString,
 				Required:    true,
@@ -39,6 +47,7 @@ func resourceBigipLtmNodeCreate(d *schema.ResourceData, meta interface{}) error 
 	client := meta.(*bigip.BigIP)
 
 	address := d.Get("address").(string)
+	partition := d.Get("partition").(string)
 	var name string
 	if v, ok := d.GetOk("name"); ok {
 		name = v.(string)
@@ -49,6 +58,7 @@ func resourceBigipLtmNodeCreate(d *schema.ResourceData, meta interface{}) error 
 	log.Println("[INFO] Creating node " + name + "::" + address)
 	err := client.CreateNode(
 		name,
+		partition,
 		address,
 	)
 	if err != nil {
@@ -64,15 +74,22 @@ func resourceBigipLtmNodeRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 
 	log.Println("[INFO] Fetching node " + name)
 
-	node, err := client.GetNode(name)
+	node, err := client.GetNode(name, partition)
 	if err != nil {
 		return err
 	}
 
+	partition = node.Partition
+	if partition == "" {
+		partition = DEFAULT_PARTITION
+	}
+
 	d.Set("name", node.Name)
+	d.Set("partition", partition)
 	d.Set("address", node.Address)
 
 	return nil
@@ -82,9 +99,10 @@ func resourceBigipLtmNodeExists(d *schema.ResourceData, meta interface{}) (bool,
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 	log.Println("[INFO] Fetching node " + name)
 
-	vs, err := client.GetNode(name)
+	vs, err := client.GetNode(name, partition)
 	if err != nil {
 		return false, err
 	}
@@ -100,41 +118,44 @@ func resourceBigipLtmNodeUpdate(d *schema.ResourceData, meta interface{}) error 
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 
 	vs := &bigip.Node{
 		Name:    name,
 		Address: d.Get("address").(string),
+		Partition: partition,
 	}
 
-	return client.ModifyNode(name, vs)
+	return client.ModifyNode(name, partition, vs)
 }
 
 func resourceBigipLtmNodeDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
+	partition := d.Get("partition").(string)
 	log.Println("[INFO] Deleting node " + name)
 
-	err := client.DeleteNode(name)
+	err := client.DeleteNode(name, partition)
 	regex := regexp.MustCompile("referenced by a member of pool '\\/\\w+/([\\w-_.]+)")
 	for err != nil {
 		log.Println("[INFO] Deleting %s from pools...", name)
 		parts := regex.FindStringSubmatch(err.Error())
 		if len(parts) > 1 {
 			poolName := parts[1]
-			members, e := client.PoolMembers(poolName)
+			members, e := client.PoolMembers(poolName, partition)
 			if e != nil {
 				return e
 			}
 			for _, member := range members {
 				if strings.HasPrefix(member, name+":") {
-					e = client.DeletePoolMember(poolName, member)
+					e = client.DeletePoolMember(poolName, partition, member)
 					if e != nil {
 						return e
 					}
 				}
 			}
-			err = client.DeleteNode(name)
+			err = client.DeleteNode(name, partition)
 		} else {
 			break
 		}
