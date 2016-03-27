@@ -161,7 +161,9 @@ resource "bigip_ltm_virtual_server" "vs" {
 
 `source_address_translation` - (Optional) Can be either omitted for `none` or the values `automap` or `snat`
 
-`ip_protocol` - (Optional) Specify the IP protocol to use with the the virtual server (all, tcp, or udp are valid)
+`ip_protocol` - (Optional) Specify the IP protocol to use with the virtual server (all, tcp, or udp are valid)
+
+`profiles` - (Optional) List of profiles to use with the virtual server
 
 ## bigip_ltm_irule
 
